@@ -22,8 +22,12 @@ const states = {
 				return false
 			}
 
-			this.sendTextMessage("Awesome! Can you send me a photo of it?")
-			this.state = "sender_waitingForPhoto"
+			const that = this
+
+			this.continueWithUserProfile(function() {
+				that.sendTextMessage("Awesome! Can you send me a photo of it?")
+				that.state = "sender_waitingForPhoto"
+			})
 		},
 
 		handlePostback: function(payload, referral) {
@@ -32,34 +36,36 @@ const states = {
 			}
 
 			const that = this
-			this.state = "fetchingUserProfile"
 
-			api.fetchUserProfile(this.userId, function(error, sender) {
-				const senderFirstName = sender.first_name
-				that.sender = sender
+			this.continueWithUserProfile(function(user) {
+				const userFirstName = user.first_name
 
 				const reference = referral && referral.ref
 				if (reference) {
-					that.sendTextMessage("Hey " + senderFirstName + ",\nFIXME would like to lend out their camera to you.")
-					that.sendTextMessage("The following price covers damage and theft. Is that okay?")
-					that.sendGenericTemplate({
-						elements: [{
-							title:    "Nikon Camera",
-							subtitle: "FIXME would like to lend Nikon Camera with you for 2 days.",
-							buttons:  [{
-								type:  "web_url",
-								title: "Accept & Pay",
-								url:   "https://www.paypal.com"
-							}]
-						}]
-					})
-					that.state = "recipient_waitingForPayment"
+					that.continueForRecipientWithReference(reference)
 				}
 				else {
-					that.sendTextMessage("Hey " + senderFirstName + ", how can I help you?")
+					that.sendTextMessage("Hey " + userFirstName + ", how can I help you?")
 					that.state = "neutral"
 				}
 			})
+		},
+
+		handleReferral: function(referral) {
+			const reference = referral && referral.ref
+			if (reference) {
+				const that = this
+
+				this.continueWithUserProfile(function() {
+					that.continueForRecipientWithReference(reference)
+				})
+			}
+		}
+	},
+
+	recipient_waitingForPayment: {
+		handleMessage: function(text) {
+			this.sendTextMessage("I'm waiting for your payment.")
 		}
 	},
 
@@ -71,6 +77,18 @@ const states = {
 			}
 
 			const that = this
+			this.duration = "2 days"
+
+			const ref = JSON.stringify({
+				"duration":   this.duration,
+				"imageUrl":   this.imageUrl,
+				"lenderId":   this.userId,
+				"lenderName": this.user.first_name + " " + this.user.last_name,
+				"object":     this.object,
+				"price":      this.price
+			})
+
+			const link = "https://www.messenger.com/t/" + process.env.PAGE_ID + "?ref=" + encodeURIComponent(ref)
 
 			this.sendTextMessage("Sure, we can do that!")
 			setTimeout(function() {
@@ -78,8 +96,8 @@ const states = {
 				that.sendGenericTemplate({
 						elements: [{
 							image_url: that.imageUrl,
-							title:     "Borrow my Nikon Camera!",
-							subtitle:  "2 days including damage and theft coverage!",
+							title:     "Borrow my " + that.object + "!",
+							subtitle:  that.duration + " including damage and theft coverage!",
 							buttons:   [{
 								type:           "element_share",
 								share_contents: {
@@ -89,12 +107,12 @@ const states = {
 											template_type: "generic",
 											elements:      [{
 												image_url: that.imageUrl,
-												title:     "Borrow my Nikon Camera!",
-												subtitle:  "2 days including damage and theft coverage!",
+												title:     "Borrow my " + that.object + "!",
+												subtitle:  that.duration + " including damage and theft coverage!",
 												buttons:   [{
 													"type":  "web_url",
-													"title": "Test",
-													"url":   "https://www.messenger.com/t/1138492269610888?ref=abc"
+													"title": "Check out Offer",
+													"url":   link
 												}]
 											}]
 										}
@@ -127,10 +145,12 @@ const states = {
 
 			const that = this
 			this.imageUrl = attachment.payload.url
+			this.object = "Nikon Camera"
+			this.price = 250
 
 			this.sendTextMessage("One sec, let me check it out…")
 			setTimeout(function() {
-				that.sendTextMessage("Cool Nikon! I’d estimate it to be worth $250. Are you okay with that?")
+				that.sendTextMessage("Cool " + that.object + "!\nI estimated that it's worth $" + that.price + ".\nAre you okay with that?")
 			}, 3000)
 			this.state = "sender_waitingForPriceAcceptance"
 		}
@@ -145,6 +165,7 @@ const states = {
 			}
 
 			const that = this
+			this.price = Number.parseInt(price)
 
 			this.sendTextMessage("Okay, seems reasonable.")
 			setTimeout(function() {
@@ -180,6 +201,54 @@ const Conversation = function(userId) {
 }
 module.exports = Conversation
 
+
+Conversation.prototype.continueForRecipientWithReference = function(reference) {
+	const info = JSON.parse(reference)
+	this.duration = info.duration
+	this.imageUrl = info.imageUrl
+	this.lenderId = info.lenderId
+	this.lenderName = info.lenderName
+	this.object = info.object
+	this.price = info.price
+
+	this.sendTextMessage("Hey " + this.user.first_name + ",\n" + this.lenderName + " would like to lend out a " + this.object + " to you.")
+	this.sendTextMessage("It's worth $" + this.price + " and the following price covers damage and theft. Is that okay?")
+	this.sendGenericTemplate({
+		elements: [{
+			image_url: this.imageUrl,
+			title:     this.object,
+			subtitle:  this.duration + " including damage and theft coverage!",
+			buttons:   [{
+				type:  "web_url",
+				title: "Accept & Pay",
+				url:   "https://www.paypal.com"
+			}]
+		}]
+	})
+	this.state = "recipient_waitingForPayment"
+}
+
+
+Conversation.prototype.continueWithUserProfile = function(callback) {
+	if (this.user) {
+		setImmediate(callback, this.user)
+	}
+	else {
+		const previousState = this.state
+		this.state = "fetchingUserProfile"
+
+		const that = this
+
+		api.fetchUserProfile(this.userId, function(error, user) {
+			that.user = user
+			that.state = previousState
+
+			callback(user)
+		})
+	}
+}
+
+
 Conversation.prototype.handleMessage = function(text, attachments) {
 	const state = states[this.state]
 	if (!state) {
@@ -191,7 +260,6 @@ Conversation.prototype.handleMessage = function(text, attachments) {
 	}
 	else {
 		return false
-		// FIXME
 	}
 }
 
@@ -207,7 +275,21 @@ Conversation.prototype.handlePostback = function(payload, referral) {
 	}
 	else {
 		return false
-		// FIXME
+	}
+}
+
+// FIXME de-dup
+Conversation.prototype.handleReferral = function(referral) {
+	const state = states[this.state]
+	if (!state) {
+		console.error("Invalid conversation state: ", this.state)
+		return
+	}
+	if (state.handleReferral) {
+		return state.handleReferral.call(this, referral) !== false
+	}
+	else {
+		return false
 	}
 }
 

@@ -55,7 +55,11 @@ app.post("/webhook", function(request, response) {
 						}
 					}
 					else if (event.postback) {
-						conversation.handlePostback(event.postback.payload, event.postback.referrer)
+						conversation.handlePostback(event.postback.payload, event.postback.referral)
+						return
+					}
+					else if (event.referral) {
+						conversation.handleReferral(event.referral)
 						return
 					}
 				}
