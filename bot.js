@@ -56,7 +56,7 @@ function handleMessageEvent(event) {
 			sendTextMessage(senderId, "Awesome! Can you send me a photo of it?")
 		}
 		else if (matchingText.indexOf("too") >= 0 && matchingText.indexOf("low") >= 0) {
-			sendTextMessage(senderId, "What do you think it’s worth?")
+			sendTextMessage(senderId, "What do you think it's worth?")
 		}
 		else if (matchingText.indexOf("400") >= 0) {
 			sendTextMessage(senderId, "Okay, seems reasonable.")
