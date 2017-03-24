@@ -64,7 +64,7 @@ function handleMessageEvent(event) {
 				sendTextMessage(senderId, "For how long would you like to lend it out?")
 			}, 1000)
 		}
-		else if (messageText.indexOf("2 days")) {
+		else if (messageText.indexOf("2 days") >= 0) {
 			sendTextMessage(senderId, "Sure, we can do that!")
 			setTimeout(function() {
 				sendTextMessage(senderId, "Share this link with your friend:")
@@ -97,6 +97,9 @@ function handleMessageEvent(event) {
 					sendTextMessage(senderId, "I’ll write you once your friend has accepted your request.")
 				}, 3000)
 			}, 1000)
+		}
+		else {
+			sendTextMessage(senderId, "I don't understand. TODO repeat last message.")
 		}
 	}
 	else if (messageAttachments) {
@@ -202,7 +205,7 @@ function callMessengerProfileApi(data) {
 }
 
 
-app.listen(process.env.PORT || 3000, function() {
+const server = app.listen(process.env.PORT || 3000, function() {
 	console.log("Listening on port %s", server.address().port)
 
 	callMessengerProfileApi({
