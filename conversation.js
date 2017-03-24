@@ -36,6 +36,7 @@ const states = {
 
 			api.fetchUserProfile(this.userId, function(error, sender) {
 				const senderFirstName = sender.first_name
+				that.sender = sender
 
 				const reference = referral && referral.ref
 				if (reference) {
@@ -65,7 +66,7 @@ const states = {
 	sender_waitingForDuration: {
 		handleMessage: function(text) {
 			const matchingText = text.toLowerCase()
-			if (!matchingText.contains("days")) {
+			if (matchingText.indexOf("days") < 0) {
 				return false
 			}
 
@@ -76,8 +77,10 @@ const states = {
 				that.sendTextMessage("Share this link with your friend:")
 				that.sendGenericTemplate({
 						elements: [{
-							title:   "TITLE",
-							buttons: [{
+							image_url: that.imageUrl,
+							title:     "Borrow my Nikon Camera!",
+							subtitle:  "2 days including damage and theft coverage!",
+							buttons:   [{
 								type:           "element_share",
 								share_contents: {
 									attachment: {
@@ -85,8 +88,10 @@ const states = {
 										payload: {
 											template_type: "generic",
 											elements:      [{
-												title:   "TITLE",
-												buttons: [{
+												image_url: that.imageUrl,
+												title:     "Borrow my Nikon Camera!",
+												subtitle:  "2 days including damage and theft coverage!",
+												buttons:   [{
 													"type":  "web_url",
 													"title": "Test",
 													"url":   "https://www.messenger.com/t/1138492269610888?ref=abc"
@@ -110,10 +115,18 @@ const states = {
 	sender_waitingForPhoto: {
 		handleMessage: function(_, attachments) {
 			if (!attachments || !attachments.length) {
-				return false
+				this.sendTextMessage("You must send me a photo.")
+				return
+			}
+
+			const attachment = attachments[0]
+			if (attachment.type !== "image") {
+				this.sendTextMessage("Sorry, but it has to be a photo!")
+				return
 			}
 
 			const that = this
+			this.imageUrl = attachment.payload.url
 
 			this.sendTextMessage("One sec, let me check it out…")
 			setTimeout(function() {

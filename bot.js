@@ -46,7 +46,11 @@ app.post("/webhook", function(request, response) {
 							break
 
 						default:
-							conversation.handleMessage(event.message.text, event.message.attachments)
+							const success = conversation.handleMessage(event.message.text || "", event.message.attachments)
+							if (!success) {
+								conversation.sendTextMessage("Sorry, I don't understand what you mean 😓")
+							}
+
 							return
 						}
 					}
